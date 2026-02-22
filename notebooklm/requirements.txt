@@ -1,0 +1,2 @@
+# Python 3.10+ required (Gradio 5+/6+ need 3.10+). Use 3.11 recommended.
+gradio>=5.0,<7

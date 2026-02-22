@@ -1,0 +1,109 @@
+:root, .dark {
+  --body-background-fill: #0b1220;
+  --body-text-color: #e7eaf0;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 0;
+}
+.header .column:first-child {
+  flex: 0 1 auto;
+}
+.header .column:last-child {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-end;
+}
+.header-right {
+  align-items: center;
+  gap: 12px;
+}
+.header-title p {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.header-hf-btn button {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+  color: #1f2937 !important;
+  font-weight: 600 !important;
+  border: none !important;
+}
+.header-hf-btn button:hover {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+}
+.gradio-container {
+  max-width: 1200px !important;
+}
+.section-card {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255,255,255,.03);
+}
+/* Primary buttons: blue/purple accent */
+button.primary, .primary button,
+[variant="primary"] button {
+  background: var(--accent) !important;
+  color: white !important;
+  border: none !important;
+}
+button.primary:hover, .primary button:hover,
+[variant="primary"] button:hover {
+  background: var(--accent-hover) !important;
+}
+/* Tabs: selected = accent, others = dark grey */
+.gradio-tabs .tab-nav button.selected {
+  background: var(--accent) !important;
+  color: white !important;
+  border-radius: 8px;
+}
+.gradio-tabs .tab-nav button:not(.selected) {
+  background: rgba(255,255,255,.06) !important;
+  color: var(--body-text-color) !important;
+}
+.pill {
+  display:inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04);
+  font-size: 12px;
+}
+.bigbtn button {
+  height: 46px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  min-width: 200px !important;
+}
+.small-muted {
+  opacity: .8;
+  font-size: 12px;
+}
+/* Ingested sources list-style */
+.sources-list table {
+  border: none !important;
+  background: transparent !important;
+}
+.sources-list th {
+  display: none !important;
+}
+.sources-list td {
+  border: none !important;
+  padding: 6px 0 !important;
+  font-size: 14px !important;
+}
+.report-files-list table {
+  border: none !important;
+  background: transparent !important;
+}
+.report-files-list td {
+  border: none !important;
+  padding: 6px 0 !important;
+}
