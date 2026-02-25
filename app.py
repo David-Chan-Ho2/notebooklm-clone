@@ -6,6 +6,7 @@ from config.settings import settings
 
 ingested_sources: list[str] = []
 
+
 def generate_report(selected_notebook, existing_files):
     """
     Generate a report from the ingested sources.
@@ -76,6 +77,7 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
             with gr.Group(elem_classes=["section-card"]):
                 with gr.Accordion("Manage Notebook", open=False):
                     gr.Markdown("<span class='small-muted'>Rename, delete, or duplicate this notebook.</span>")
+                    delete_nb = gr.Button("Delete", variant="danger", elem_classes=["full-width"])
 
             with gr.Group(elem_classes=["section-card"]):
                 gr.Markdown("### Ingested Sources")
@@ -143,6 +145,26 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
         add_notebook,
         inputs=[new_name, notebook_choices],
         outputs=[notebook, notebook_choices, new_name],
+    )
+
+    # Delete notebook -> update global notebook_choices and table
+    def delete_notebook(name, choices):
+        name = (name or "").strip()
+        if not name:
+            return gr.update(), choices  # no change
+
+        choices = list(choices)  # choices comes from gr.State -> is iterable list
+        if name in choices:
+            choices.remove(name)
+
+        next_nb = choices[0] if choices else None    
+
+        return gr.update(choices=choices, value=next_nb), choices
+
+    delete_nb.click(
+        delete_notebook,
+        inputs=[notebook, notebook_choices],
+        outputs=[notebook, notebook_choices],
     )
 
     # Upload source -> update global ingested_sources and table
