@@ -3,6 +3,8 @@ from datetime import datetime
 
 from components.Header import Header
 from components.ManageNotebook import ManageNotebook
+from components.ChatInterface import ChatInterface
+
 from config.settings import settings
 
 ingested_sources: list[str] = []
@@ -126,7 +128,7 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                 with gr.Tab("Sources"):
                     gr.Markdown("## Sources\nUpload documents on the left to ingest them.")
                 with gr.Tab("Chat"):
-                    gr.Markdown("## Chat\n(Stub) A chat UI would go here.")
+                    ChatInterface()
 
     # --- Wire up interactions ---
     def add_notebook(name, choices):
