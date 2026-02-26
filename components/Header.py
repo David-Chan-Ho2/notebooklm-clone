@@ -16,11 +16,10 @@ def Header():
                 gr.Markdown(f"**{settings.APP_TITLE}**", elem_classes=["header-title"])
             with gr.Column(scale=1, min_width=200):
                 m1 = gr.Markdown()
-
             with gr.Column(scale=1, min_width=200):
-                with gr.Row(elem_classes=["header-right"]):
-                    gr.LoginButton(
-                        value="Sign in with Hugging Face"
-                    )
+                gr.LoginButton(
+                    value="Sign in with Hugging Face"
+                )
+
     header.load(login_status, inputs=None, outputs=m1)
               
