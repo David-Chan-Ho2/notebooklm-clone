@@ -53,6 +53,26 @@ def add_source(file_obj):
             ingested_sources.append(short)
     return [[s] for s in ingested_sources]
 
+def add_notebook(name, choices):
+    name = (name or "").strip()
+    if not name:
+        return gr.update(), choices, ""  # no change, clear box
+
+    choices = list(choices)  # choices comes from gr.State -> is iterable list
+    if name not in choices:
+        choices.append(name)
+
+    return gr.update(choices=choices, value=name), choices, ""
+
+def _gen(selected_nb, files):
+    updated_files, md, status_text = generate_report(selected_nb, files)
+    return (
+        updated_files,
+        [[f] for f in updated_files],
+        md,
+        status_text
+    )
+
 DEFAULT_NOTEBOOKS = ["Notebook 1", "Notebook 2", "Notebook 3"]
 
 with gr.Blocks(title=settings.APP_TITLE) as demo:
@@ -132,17 +152,6 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                     ChatInterface()
 
     # --- Wire up interactions ---
-    def add_notebook(name, choices):
-        name = (name or "").strip()
-        if not name:
-            return gr.update(), choices, ""  # no change, clear box
-
-        choices = list(choices)  # choices comes from gr.State -> is iterable list
-        if name not in choices:
-            choices.append(name)
-
-        return gr.update(choices=choices, value=name), choices, ""
-
     add_nb.click(
         add_notebook,
         inputs=[new_name, notebook_choices],
@@ -155,16 +164,6 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
         inputs=[upload],
         outputs=[ingested_list],
     )
-
-    # Generate report -> update file list + preview + status (uses global ingested_sources)
-    def _gen(selected_nb, files):
-        updated_files, md, status_text = generate_report(selected_nb, files)
-        return (
-            updated_files,
-            [[f] for f in updated_files],
-            md,
-            status_text
-        )
 
     gen.click(
         _gen,
