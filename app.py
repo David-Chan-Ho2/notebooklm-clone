@@ -82,7 +82,6 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
 
             with gr.Group(elem_classes=["section-card"]):
                 gr.Markdown("### Ingested Sources")
-                upload = gr.File(label="Add source (PDF)", file_types=[".pdf"], file_count="single")
                 ingested_list = gr.Dataframe(
                     headers=["Sources"],
                     value=[[s] for s in ingested_sources],
@@ -97,6 +96,10 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
         with gr.Column(scale=9, min_width=640):
             # Tabs: Artifacts first so it's the default view
             with gr.Tabs():
+                with gr.Tab("Sources"):
+                    upload = gr.File(label="Upload PDF, PPTX, or TXT", file_types=[".pdf", ".pptx", ".txt"], file_count="single", interactive=True)
+                    ingest_url = gr.Textbox(label="Ingest URL", placeholder="https://example.com/article", interactive=True)
+                    ingest_btn = gr.Button("Ingest URL", variant="primary")
                 with gr.Tab("Artifacts"):
                     with gr.Tabs():
                         with gr.Tab("Reports"):
@@ -125,8 +128,6 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                             gr.Markdown("## Quizzes\n(Stub) Generate quizzes from sources.")
                         with gr.Tab("Podcasts"):
                             gr.Markdown("## Podcasts\n(Stub) Generate podcast scripts/audio from sources.")
-                with gr.Tab("Sources"):
-                    gr.Markdown("## Sources\nUpload documents on the left to ingest them.")
                 with gr.Tab("Chat"):
                     ChatInterface()
 
@@ -172,4 +173,4 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(css_paths=["./styles/styles.css"], share=True)
+    demo.launch(css_paths=["./styles/styles.css"])

@@ -1,10 +1,10 @@
-:root, .dark {
+:root,
+.dark {
   --body-background-fill: #0b1220;
   --body-text-color: #e7eaf0;
   --accent: #6366f1;
   --accent-hover: #4f46e5;
 }
-
 .header {
   display: flex;
   align-items: center;
@@ -39,22 +39,24 @@
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
 }
 .gradio-container {
-  max-width: 1200px !important;
+  max-width: 100vw !important;
 }
 .section-card {
-  border: 1px solid rgba(255,255,255,.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 14px;
-  background: rgba(255,255,255,.03);
+  background: rgba(255, 255, 255, 0.03);
 }
 /* Primary buttons: blue/purple accent */
-button.primary, .primary button,
+button.primary,
+.primary button,
 [variant="primary"] button {
   background: var(--accent) !important;
   color: white !important;
   border: none !important;
 }
-button.primary:hover, .primary button:hover,
+button.primary:hover,
+.primary button:hover,
 [variant="primary"] button:hover {
   background: var(--accent-hover) !important;
 }
@@ -65,15 +67,15 @@ button.primary:hover, .primary button:hover,
   border-radius: 8px;
 }
 .gradio-tabs .tab-nav button:not(.selected) {
-  background: rgba(255,255,255,.06) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
   color: var(--body-text-color) !important;
 }
 .pill {
-  display:inline-block;
+  display: inline-block;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
   font-size: 12px;
 }
 .bigbtn button {
@@ -83,7 +85,7 @@ button.primary:hover, .primary button:hover,
   min-width: 200px !important;
 }
 .small-muted {
-  opacity: .8;
+  opacity: 0.8;
   font-size: 12px;
 }
 /* Ingested sources list-style */

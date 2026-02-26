@@ -7,6 +7,7 @@ sdk: gradio
 sdk_version: 6.6.0
 app_file: app.py
 pinned: false
+hf_oauth: true
 ---
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
