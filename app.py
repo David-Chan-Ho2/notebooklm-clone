@@ -27,6 +27,7 @@ from rag import (
     extract_plain_text_from_file,
     extract_plain_text_from_url,
     generate_quiz,
+    generate_report as rag_generate_report,
     ingest_file_for_rag,
     ingest_url_for_rag,
 )
