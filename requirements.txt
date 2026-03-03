@@ -1,2 +1,14 @@
 # Python 3.10+ required (Gradio 5+/6+ need 3.10+). Use 3.11 recommended.
-gradio>=5.0,<7
+gradio[oauth]>=5.0,<7
+python-dotenv
+langchain
+langchain-community
+langchain-groq
+chromadb
+sentence-transformers
+PyPDF2
+langchain-text-splitters
+unstructured
+python-pptx
+fastembed
+huggingface_hub

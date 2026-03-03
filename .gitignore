@@ -1,1 +1,23 @@
-notebooklm_data/
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.Python
+
+# Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# Local artifacts / generated data
+storage/
+chroma_db/
+.gradio/
+flagged/
+
+# Editor/OS
+.vscode/
+.DS_Store
+Thumbs.db
