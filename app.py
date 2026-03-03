@@ -66,38 +66,28 @@ def _save_notebook_markdown(*, notebook_id: str, subdir: str, prefix: str, conte
 
 def generate_report(notebook_id: str, existing_files):
     """
-    Generate a report from the ingested sources.
+    Generate a report from the ingested sources using RAG, save it, and return preview + file list.
     """
-    events = list_source_events(notebook_id)
-    if not events:
-        md = "## No sources ingested\nUpload a PDF (or add a source) first."
-        return existing_files, md, "No report generated (no sources)."
+    notebook_id = (notebook_id or "").strip()
+    if not notebook_id:
+        md = "## No notebook selected\nPlease select a notebook first."
+        return existing_files, md, "No report generated (no notebook selected)."
 
-    src_lines = "\n".join(
-        [
-            f"- `{e.get('original_filename')}`"
-            if e.get("kind") == "file"
-            else f"- `{e.get('url')}`"
-            for e in events
-        ]
+    report_md = rag_generate_report(
+        persist_directory=_chroma_dir(notebook_id),
+        title="Report",
+        focus_prompt="",
     )
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    report_md = f"""# Report
-
-Generated from your ingested sources.
-
-**Notebook:** `{selected_notebook}`  
-**Generated:** `{now}`
-
-### Ingested sources
-{src_lines}
-"""
+    # Don't save error reports
+    if report_md.startswith("No sources") or report_md.startswith("Unable to retrieve"):
+        return existing_files, report_md, "Report could not be generated. Upload/ingest sources first."
 
     files = list(existing_files) if existing_files else []
     report_path = _save_notebook_markdown(
         notebook_id=notebook_id, subdir="reports", prefix="report", content=report_md
     )
+
     report_name = report_path.name
     if report_name not in files:
         files = [report_name] + files
