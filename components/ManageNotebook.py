@@ -13,8 +13,8 @@ def _choices(notebooks: list[dict]) -> list[tuple[str, str]]:
     return [(n["name"], n["id"]) for n in notebooks]
 
 
-def _sources_table(notebook_id: str) -> list[list[str]]:
-    events = list_source_events(notebook_id)
+def _sources_table(user_id: str | None, notebook_id: str) -> list[list[str]]:
+    events = list_source_events(user_id, notebook_id)
     rows: list[list[str]] = []
     for e in events:
         kind = e.get("kind")
@@ -25,62 +25,100 @@ def _sources_table(notebook_id: str) -> list[list[str]]:
     return [r for r in rows if r and r[0]]
 
 
-def delete_notebook(selected_id, notebooks):
+def delete_notebook(selected_id, notebooks, user_id: str | None):
     selected_id = (selected_id or "").strip()
     notebooks = list(notebooks or [])
     if not selected_id:
-        return gr.update(), notebooks, selected_id, _sources_table(selected_id) if selected_id else []
+        return (
+            gr.update(),
+            notebooks,
+            selected_id,
+            _sources_table(user_id, selected_id) if selected_id else [],
+        )
 
-    delete_notebook_on_disk(selected_id)
+    delete_notebook_on_disk(user_id, selected_id)
     notebooks = [n for n in notebooks if n.get("id") != selected_id]
 
     if not notebooks:
-        nb = create_notebook("Notebook 1")
+        nb = create_notebook(user_id, "Notebook 1")
         notebooks = [{"id": nb.id, "name": nb.name}]
 
     next_id = notebooks[0]["id"]
-    return gr.update(choices=_choices(notebooks), value=next_id), notebooks, next_id, _sources_table(next_id)
+    return (
+        gr.update(choices=_choices(notebooks), value=next_id),
+        notebooks,
+        next_id,
+        _sources_table(user_id, next_id),
+    )
 
 
-def rename_notebook(selected_id, new_name, notebooks):
+def rename_notebook(selected_id, new_name, notebooks, user_id: str | None):
     selected_id = (selected_id or "").strip()
     new_name = (new_name or "").strip()
     notebooks = list(notebooks or [])
 
     if not selected_id or not new_name:
-        return gr.update(), notebooks, "", selected_id, _sources_table(selected_id) if selected_id else []
+        return (
+            gr.update(),
+            notebooks,
+            "",
+            selected_id,
+            _sources_table(user_id, selected_id) if selected_id else [],
+        )
 
     existing_names = {str(n.get("name")) for n in notebooks}
     current = next((n for n in notebooks if n.get("id") == selected_id), None)
     if current is None:
-        return gr.update(), notebooks, "", selected_id, _sources_table(selected_id)
+        return gr.update(), notebooks, "", selected_id, _sources_table(user_id, selected_id)
 
     if new_name in existing_names and new_name != current.get("name"):
-        return gr.update(), notebooks, "", selected_id, _sources_table(selected_id)
+        return (
+            gr.update(),
+            notebooks,
+            "",
+            selected_id,
+            _sources_table(user_id, selected_id),
+        )
 
-    meta = rename_notebook_on_disk(selected_id, new_name)
+    meta = rename_notebook_on_disk(user_id, selected_id, new_name)
     current["name"] = meta.name
     current["id"] = meta.id
     notebooks.sort(key=lambda n: str(n.get("name", "")).lower())
 
-    return gr.update(choices=_choices(notebooks), value=meta.id), notebooks, "", meta.id, _sources_table(meta.id)
+    return (
+        gr.update(choices=_choices(notebooks), value=meta.id),
+        notebooks,
+        "",
+        meta.id,
+        _sources_table(user_id, meta.id),
+    )
 
 
-def duplicate_notebook(selected_id, notebooks):
+def duplicate_notebook(selected_id, notebooks, user_id: str | None):
     selected_id = (selected_id or "").strip()
     notebooks = list(notebooks or [])
     if not selected_id:
-        return gr.update(), notebooks, selected_id, _sources_table(selected_id) if selected_id else []
+        return (
+            gr.update(),
+            notebooks,
+            selected_id,
+            _sources_table(user_id, selected_id) if selected_id else [],
+        )
 
     current = next((n for n in notebooks if n.get("id") == selected_id), None)
     base_name = str(current.get("name") if current else "Notebook")
     new_name = make_copy_name(base_name, [str(n.get("name")) for n in notebooks])
 
-    meta = duplicate_notebook_on_disk(selected_id, new_name=new_name)
+    meta = duplicate_notebook_on_disk(user_id, selected_id, new_name=new_name)
     notebooks.append({"id": meta.id, "name": meta.name})
     notebooks.sort(key=lambda n: str(n.get("name", "")).lower())
 
-    return gr.update(choices=_choices(notebooks), value=meta.id), notebooks, meta.id, _sources_table(meta.id)
+    return (
+        gr.update(choices=_choices(notebooks), value=meta.id),
+        notebooks,
+        meta.id,
+        _sources_table(user_id, meta.id),
+    )
 
 
 def make_copy_name(base: str, choices: list[str]) -> str:
@@ -99,7 +137,8 @@ def make_copy_name(base: str, choices: list[str]) -> str:
                 return candidate
             i += 1
 
-def ManageNotebook(notebook, notebooks_state, notebook_id_state, ingested_list):
+
+def ManageNotebook(notebook, notebooks_state, notebook_id_state, ingested_list, user_id_state):
     with gr.Accordion("Manage Notebook", open=False, elem_classes=["section-card"]):
         updated_name = gr.Textbox(label="Update name", interactive=True)
         rename_nb = gr.Button("Rename", variant="secondary", elem_classes=["full-width"])
@@ -108,18 +147,18 @@ def ManageNotebook(notebook, notebooks_state, notebook_id_state, ingested_list):
 
     delete_nb.click(
         delete_notebook,
-        inputs=[notebook, notebooks_state],
+        inputs=[notebook, notebooks_state, user_id_state],
         outputs=[notebook, notebooks_state, notebook_id_state, ingested_list],
     )
 
     rename_nb.click(
         rename_notebook,
-        inputs=[notebook, updated_name, notebooks_state],
+        inputs=[notebook, updated_name, notebooks_state, user_id_state],
         outputs=[notebook, notebooks_state, updated_name, notebook_id_state, ingested_list],
     )
 
     duplicate_nb.click(
         duplicate_notebook,
-        inputs=[notebook, notebooks_state],
+        inputs=[notebook, notebooks_state, user_id_state],
         outputs=[notebook, notebooks_state, notebook_id_state, ingested_list],
     )

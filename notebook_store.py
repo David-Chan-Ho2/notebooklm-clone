@@ -13,12 +13,27 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def storage_root() -> Path:
-    return Path(__file__).with_name("storage")
+def _safe_user_id(user_id: str | None) -> str:
+    """
+    Produce a filesystem-safe user identifier.
+    """
+    user_id = (user_id or "").strip()
+    if not user_id:
+        return "anonymous"
+    # Reuse the same sanitization rules as notebook names.
+    return _safe_folder_name(user_id)
 
 
-def notebooks_root() -> Path:
-    return storage_root() / "notebooks"
+def storage_root(user_id: str | None) -> Path:
+    """
+    Per-user storage root so that each user's data is isolated on disk.
+    """
+    base = Path(__file__).with_name("storage")
+    return base / "users" / _safe_user_id(user_id)
+
+
+def notebooks_root(user_id: str | None) -> Path:
+    return storage_root(user_id) / "notebooks"
 
 
 @dataclass(frozen=True)
@@ -28,12 +43,12 @@ class NotebookMeta:
     created_at: str
 
 
-def notebook_dir(notebook_id: str) -> Path:
-    return notebooks_root() / notebook_id
+def notebook_dir(user_id: str | None, notebook_id: str) -> Path:
+    return notebooks_root(user_id) / notebook_id
 
 
-def notebook_meta_path(notebook_id: str) -> Path:
-    return notebook_dir(notebook_id) / "notebook.json"
+def notebook_meta_path(user_id: str | None, notebook_id: str) -> Path:
+    return notebook_dir(user_id, notebook_id) / "notebook.json"
 
 
 def _safe_folder_name(name: str) -> str:
@@ -52,9 +67,9 @@ def _safe_folder_name(name: str) -> str:
     return name or "Notebook"
 
 
-def _unique_folder_name(base: str) -> str:
+def _unique_folder_name(user_id: str | None, base: str) -> str:
     base = _safe_folder_name(base)
-    root = notebooks_root()
+    root = notebooks_root(user_id)
     root.mkdir(parents=True, exist_ok=True)
 
     if not (root / base).exists():
@@ -87,12 +102,12 @@ def _rewrite_jsonl_notebook_id(path: Path, *, old_id: str, new_id: str) -> None:
     path.write_text("\n".join(out_lines) + ("\n" if out_lines else ""), encoding="utf-8")
 
 
-def migrate_notebook_folders_to_names() -> list[NotebookMeta]:
+def migrate_notebook_folders_to_names(user_id: str | None) -> list[NotebookMeta]:
     """
     If older notebooks were stored under random IDs (uuid hex), rename
     their folders to match the notebook name (filesystem-safe).
     """
-    root = notebooks_root()
+    root = notebooks_root(user_id)
     if not root.exists():
         return []
 
@@ -135,11 +150,11 @@ def migrate_notebook_folders_to_names() -> list[NotebookMeta]:
             except Exception:
                 pass
 
-    return list_notebooks()
+    return list_notebooks(user_id)
 
 
-def ensure_notebook_layout(notebook_id: str) -> Path:
-    nb = notebook_dir(notebook_id)
+def ensure_notebook_layout(user_id: str | None, notebook_id: str) -> Path:
+    nb = notebook_dir(user_id, notebook_id)
     (nb / "sources" / "raw").mkdir(parents=True, exist_ok=True)
     (nb / "sources" / "text").mkdir(parents=True, exist_ok=True)
     (nb / "chat").mkdir(parents=True, exist_ok=True)
@@ -179,8 +194,8 @@ def _append_jsonl(path: Path, obj: dict[str, Any]) -> None:
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-def list_notebooks() -> list[NotebookMeta]:
-    root = notebooks_root()
+def list_notebooks(user_id: str | None) -> list[NotebookMeta]:
+    root = notebooks_root(user_id)
     if not root.exists():
         return []
 
@@ -207,38 +222,38 @@ def list_notebooks() -> list[NotebookMeta]:
     return notebooks
 
 
-def create_notebook(name: str) -> NotebookMeta:
+def create_notebook(user_id: str | None, name: str) -> NotebookMeta:
     name = (name or "").strip()
     if not name:
         raise ValueError("Notebook name cannot be empty.")
 
-    nb_id = _unique_folder_name(name)
-    ensure_notebook_layout(nb_id)
+    nb_id = _unique_folder_name(user_id, name)
+    ensure_notebook_layout(user_id, nb_id)
     meta = NotebookMeta(id=nb_id, name=name, created_at=_now_iso())
-    _write_json(notebook_meta_path(nb_id), asdict(meta))
+    _write_json(notebook_meta_path(user_id, nb_id), asdict(meta))
     return meta
 
 
-def rename_notebook(notebook_id: str, new_name: str) -> NotebookMeta:
+def rename_notebook(user_id: str | None, notebook_id: str, new_name: str) -> NotebookMeta:
     new_name = (new_name or "").strip()
     if not new_name:
         raise ValueError("New name cannot be empty.")
 
-    old_dir = notebook_dir(notebook_id)
+    old_dir = notebook_dir(user_id, notebook_id)
     if not old_dir.exists():
         raise FileNotFoundError("Notebook does not exist.")
 
-    new_id = _unique_folder_name(new_name) if _safe_folder_name(new_name) != notebook_id else notebook_id
+    new_id = _unique_folder_name(user_id, new_name) if _safe_folder_name(new_name) != notebook_id else notebook_id
 
     created_at = ""
     try:
-        raw_existing = _read_json(notebook_meta_path(notebook_id))
+        raw_existing = _read_json(notebook_meta_path(user_id, notebook_id))
         created_at = str(raw_existing.get("created_at") or "")
     except Exception:
         created_at = ""
 
     if new_id != notebook_id:
-        new_dir = notebook_dir(new_id)
+        new_dir = notebook_dir(user_id, new_id)
         old_dir.rename(new_dir)
 
         # Rewrite jsonl notebook_id fields (best-effort).
@@ -246,26 +261,26 @@ def rename_notebook(notebook_id: str, new_name: str) -> NotebookMeta:
         _rewrite_jsonl_notebook_id(new_dir / "chat" / "history.jsonl", old_id=notebook_id, new_id=new_id)
 
     meta = NotebookMeta(id=new_id, name=new_name, created_at=created_at or _now_iso())
-    _write_json(notebook_meta_path(new_id), asdict(meta))
+    _write_json(notebook_meta_path(user_id, new_id), asdict(meta))
     return meta
 
 
-def delete_notebook(notebook_id: str) -> None:
-    nb = notebook_dir(notebook_id)
+def delete_notebook(user_id: str | None, notebook_id: str) -> None:
+    nb = notebook_dir(user_id, notebook_id)
     if nb.exists():
         shutil.rmtree(nb)
 
 
-def duplicate_notebook(notebook_id: str, *, new_name: Optional[str] = None) -> NotebookMeta:
-    src = notebook_dir(notebook_id)
+def duplicate_notebook(user_id: str | None, notebook_id: str, *, new_name: Optional[str] = None) -> NotebookMeta:
+    src = notebook_dir(user_id, notebook_id)
     if not src.exists():
         raise FileNotFoundError("Notebook does not exist.")
 
-    src_meta = _read_json(notebook_meta_path(notebook_id))
+    src_meta = _read_json(notebook_meta_path(user_id, notebook_id))
     name = (new_name or "").strip() or f"{src_meta.get('name', 'Notebook')} (copy)"
 
-    meta = create_notebook(name)
-    dst = notebook_dir(meta.id)
+    meta = create_notebook(user_id, name)
+    dst = notebook_dir(user_id, meta.id)
 
     # Copy user data/artifacts; keep the new notebook.json intact.
     for rel in ["sources", "chat", "quizzes", "reports", "chroma_db"]:
@@ -276,39 +291,39 @@ def duplicate_notebook(notebook_id: str, *, new_name: Optional[str] = None) -> N
     return meta
 
 
-def ensure_default_notebooks(names: list[str]) -> list[NotebookMeta]:
-    migrate_notebook_folders_to_names()
-    existing = list_notebooks()
+def ensure_default_notebooks(user_id: str | None, names: list[str]) -> list[NotebookMeta]:
+    migrate_notebook_folders_to_names(user_id)
+    existing = list_notebooks(user_id)
     if existing:
         return existing
     created: list[NotebookMeta] = []
     for n in names:
-        created.append(create_notebook(n))
+        created.append(create_notebook(user_id, n))
     return created
 
 
-def sources_manifest_path(notebook_id: str) -> Path:
-    return notebook_dir(notebook_id) / "sources" / "sources.jsonl"
+def sources_manifest_path(user_id: str | None, notebook_id: str) -> Path:
+    return notebook_dir(user_id, notebook_id) / "sources" / "sources.jsonl"
 
 
-def append_source_event(notebook_id: str, event: dict[str, Any]) -> None:
+def append_source_event(user_id: str | None, notebook_id: str, event: dict[str, Any]) -> None:
     event = dict(event)
     event.setdefault("ts", _now_iso())
     event.setdefault("notebook_id", notebook_id)
-    _append_jsonl(sources_manifest_path(notebook_id), event)
+    _append_jsonl(sources_manifest_path(user_id, notebook_id), event)
 
 
-def list_source_events(notebook_id: str) -> list[dict[str, Any]]:
-    return list(_iter_jsonl(sources_manifest_path(notebook_id)))
+def list_source_events(user_id: str | None, notebook_id: str) -> list[dict[str, Any]]:
+    return list(_iter_jsonl(sources_manifest_path(user_id, notebook_id)))
 
 
-def chat_history_path(notebook_id: str) -> Path:
-    return notebook_dir(notebook_id) / "chat" / "history.jsonl"
+def chat_history_path(user_id: str | None, notebook_id: str) -> Path:
+    return notebook_dir(user_id, notebook_id) / "chat" / "history.jsonl"
 
 
-def append_chat_event(notebook_id: str, *, role: str, content: str) -> None:
+def append_chat_event(user_id: str | None, notebook_id: str, *, role: str, content: str) -> None:
     _append_jsonl(
-        chat_history_path(notebook_id),
+        chat_history_path(user_id, notebook_id),
         {"ts": _now_iso(), "notebook_id": notebook_id, "role": role, "content": content},
     )
 

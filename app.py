@@ -37,8 +37,8 @@ def _notebook_choices(notebooks: list[dict]) -> list[tuple[str, str]]:
     return [(n["name"], n["id"]) for n in notebooks]
 
 
-def _sources_table(notebook_id: str) -> list[list[str]]:
-    events = list_source_events(notebook_id)
+def _sources_table(user_id: str | None, notebook_id: str) -> list[list[str]]:
+    events = list_source_events(user_id, notebook_id)
     rows: list[list[str]] = []
     for e in events:
         kind = e.get("kind")
@@ -49,13 +49,15 @@ def _sources_table(notebook_id: str) -> list[list[str]]:
     return [r for r in rows if r and r[0]]
 
 
-def _chroma_dir(notebook_id: str) -> str:
-    ensure_notebook_layout(notebook_id)
-    return str(notebook_dir(notebook_id) / "chroma_db")
+def _chroma_dir(user_id: str | None, notebook_id: str) -> str:
+    ensure_notebook_layout(user_id, notebook_id)
+    return str(notebook_dir(user_id, notebook_id) / "chroma_db")
 
 
-def _save_notebook_markdown(*, notebook_id: str, subdir: str, prefix: str, content: str) -> Path:
-    nb = ensure_notebook_layout(notebook_id)
+def _save_notebook_markdown(
+    *, user_id: str | None, notebook_id: str, subdir: str, prefix: str, content: str
+) -> Path:
+    nb = ensure_notebook_layout(user_id, notebook_id)
     target_dir = nb / subdir
     target_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -64,7 +66,7 @@ def _save_notebook_markdown(*, notebook_id: str, subdir: str, prefix: str, conte
     return path
 
 
-def generate_report(notebook_id: str, existing_files):
+def generate_report(user_id: str | None, notebook_id: str, existing_files):
     """
     Generate a report from the ingested sources using RAG, save it, and return preview + file list.
     """
@@ -74,7 +76,7 @@ def generate_report(notebook_id: str, existing_files):
         return existing_files, md, "No report generated (no notebook selected)."
 
     report_md = rag_generate_report(
-        persist_directory=_chroma_dir(notebook_id),
+        persist_directory=_chroma_dir(user_id, notebook_id),
         title="Report",
         focus_prompt="",
     )
@@ -85,7 +87,7 @@ def generate_report(notebook_id: str, existing_files):
 
     files = list(existing_files) if existing_files else []
     report_path = _save_notebook_markdown(
-        notebook_id=notebook_id, subdir="reports", prefix="report", content=report_md
+        user_id=user_id, notebook_id=notebook_id, subdir="reports", prefix="report", content=report_md
     )
 
     report_name = report_path.name
@@ -96,7 +98,7 @@ def generate_report(notebook_id: str, existing_files):
     return files, report_md, status
 
 
-def add_source(file_obj, notebook_id: str):
+def add_source(file_obj, notebook_id: str, user_id: str | None):
     """
     Persist an uploaded file into the selected notebook, extract text,
     ingest into the notebook's vector store, and return rows for the sources table.
@@ -106,27 +108,28 @@ def add_source(file_obj, notebook_id: str):
         tmp_path = getattr(file_obj, "name", None)
         if tmp_path:
             notebook_id = (notebook_id or "").strip()
-            ensure_notebook_layout(notebook_id)
+            ensure_notebook_layout(user_id, notebook_id)
 
             source_id = uuid.uuid4().hex
             original = str(tmp_path).split("/")[-1].split("\\")[-1] or "uploaded_file"
 
-            raw_dir = notebook_dir(notebook_id) / "sources" / "raw" / source_id
+            raw_dir = notebook_dir(user_id, notebook_id) / "sources" / "raw" / source_id
             raw_dir.mkdir(parents=True, exist_ok=True)
             raw_path = raw_dir / original
             shutil.copy2(tmp_path, raw_path)
 
             extracted = extract_plain_text_from_file(str(raw_path))
-            text_path = notebook_dir(notebook_id) / "sources" / "text" / f"{source_id}.txt"
+            text_path = notebook_dir(user_id, notebook_id) / "sources" / "text" / f"{source_id}.txt"
             text_path.write_text(extracted, encoding="utf-8")
 
             chunks = ingest_file_for_rag(
                 str(raw_path),
-                persist_directory=_chroma_dir(notebook_id),
+                persist_directory=_chroma_dir(user_id, notebook_id),
                 source_name=original,
             )
 
             append_source_event(
+                user_id,
                 notebook_id,
                 {
                     "kind": "file",
@@ -139,35 +142,36 @@ def add_source(file_obj, notebook_id: str):
                 },
             )
 
-    return _sources_table(notebook_id)
+    return _sources_table(user_id, notebook_id)
 
 
-def add_url_source(url, notebook_id: str):
+def add_url_source(url, notebook_id: str, user_id: str | None):
     """
     Ingest a URL into the RAG vector store and update the sources table.
     """
     url = (url or "").strip()
     if not url:
-        return _sources_table(notebook_id), ""
+        return _sources_table(user_id, notebook_id), ""
 
     notebook_id = (notebook_id or "").strip()
-    ensure_notebook_layout(notebook_id)
+    ensure_notebook_layout(user_id, notebook_id)
 
     source_id = uuid.uuid4().hex
-    raw_dir = notebook_dir(notebook_id) / "sources" / "raw" / source_id
+    raw_dir = notebook_dir(user_id, notebook_id) / "sources" / "raw" / source_id
     raw_dir.mkdir(parents=True, exist_ok=True)
     raw_path = raw_dir / "url.txt"
     raw_path.write_text(url + "\n", encoding="utf-8")
 
     extracted = extract_plain_text_from_url(url)
-    text_path = notebook_dir(notebook_id) / "sources" / "text" / f"{source_id}.txt"
+    text_path = notebook_dir(user_id, notebook_id) / "sources" / "text" / f"{source_id}.txt"
     text_path.write_text(extracted, encoding="utf-8")
 
     chunks = ingest_url_for_rag(
-        url, persist_directory=_chroma_dir(notebook_id), source_name=url
+        url, persist_directory=_chroma_dir(user_id, notebook_id), source_name=url
     )
 
     append_source_event(
+        user_id,
         notebook_id,
         {
             "kind": "url",
@@ -180,9 +184,10 @@ def add_url_source(url, notebook_id: str):
         },
     )
 
-    return _sources_table(notebook_id), ""
+    return _sources_table(user_id, notebook_id), ""
 
-def add_notebook(name, notebooks):
+
+def add_notebook(name, notebooks, user_id: str | None):
     name = (name or "").strip()
     if not name:
         return gr.update(), notebooks, "", gr.update(), []
@@ -190,9 +195,15 @@ def add_notebook(name, notebooks):
     notebooks = list(notebooks or [])
     existing_names = {str(n.get("name")) for n in notebooks}
     if name in existing_names:
-        return gr.update(), notebooks, "", gr.update(), _sources_table(notebooks[0]["id"]) if notebooks else []
+        return (
+            gr.update(),
+            notebooks,
+            "",
+            gr.update(),
+            _sources_table(user_id, notebooks[0]["id"]) if notebooks else [],
+        )
 
-    meta = create_notebook(name)
+    meta = create_notebook(user_id, name)
     notebooks.append({"id": meta.id, "name": meta.name})
     notebooks.sort(key=lambda n: str(n.get("name", "")).lower())
 
@@ -201,30 +212,31 @@ def add_notebook(name, notebooks):
         notebooks,
         "",
         meta.id,
-        _sources_table(meta.id),
+        _sources_table(user_id, meta.id),
     )
 
 
-def select_notebook(notebook_id: str):
+def select_notebook(notebook_id: str, user_id: str | None):
     notebook_id = (notebook_id or "").strip()
-    return notebook_id, _sources_table(notebook_id)
+    return notebook_id, _sources_table(user_id, notebook_id)
 
-def _gen(notebook_id, files):
-    updated_files, md, status_text = generate_report(notebook_id, files)
+
+def _gen(notebook_id, files, user_id: str | None):
+    updated_files, md, status_text = generate_report(user_id, notebook_id, files)
     return (
         updated_files,
         [[f] for f in updated_files],
         md,
-        status_text
+        status_text,
     )
 
 
-def _gen_quiz(num_questions: int, notebook_id: str):
+def _gen_quiz(num_questions: int, notebook_id: str, user_id: str | None):
     """
     Generate a quiz from the ingested sources using the RAG pipeline.
     """
     quiz_markdown = generate_quiz(
-        persist_directory=_chroma_dir(notebook_id), num_questions=num_questions
+        persist_directory=_chroma_dir(user_id, notebook_id), num_questions=num_questions
     )
     is_error = quiz_markdown.startswith("No sources") or quiz_markdown.startswith(
         "Unable to retrieve"
@@ -233,19 +245,35 @@ def _gen_quiz(num_questions: int, notebook_id: str):
         return quiz_markdown, "Quiz could not be generated. See message above.", None
 
     quiz_path = _save_notebook_markdown(
-        notebook_id=notebook_id, subdir="quizzes", prefix="quiz", content=quiz_markdown
+        user_id=user_id, notebook_id=notebook_id, subdir="quizzes", prefix="quiz", content=quiz_markdown
     )
     status = f"Quiz generated successfully. Saved as `{quiz_path.name}`."
     return quiz_markdown, status, str(quiz_path)
 
+
 DEFAULT_NOTEBOOKS = ["Notebook 1", "Notebook 2", "Notebook 3"]
-_boot = ensure_default_notebooks(DEFAULT_NOTEBOOKS)
-_notebooks_init = [{"id": n.id, "name": n.name} for n in _boot]
-_initial_id = _notebooks_init[0]["id"] if _notebooks_init else create_notebook("Notebook 1").id
+
+
+def _init_user_and_notebooks(request: gr.Request):
+    """
+    Initialize per-user state based on the authenticated Hugging Face user.
+    """
+    user_id = getattr(request, "username", None) or None
+    boot = ensure_default_notebooks(user_id, DEFAULT_NOTEBOOKS)
+    notebooks_init = [{"id": n.id, "name": n.name} for n in boot]
+    initial_id = notebooks_init[0]["id"] if notebooks_init else None
+    sources = _sources_table(user_id, initial_id) if initial_id else []
+    notebook_dropdown = gr.update(
+        choices=_notebook_choices(notebooks_init),
+        value=initial_id,
+    )
+    return user_id, notebooks_init, initial_id, sources, notebook_dropdown
+
 
 with gr.Blocks(title=settings.APP_TITLE) as demo:
-    notebooks_state = gr.State(_notebooks_init)
-    notebook_id_state = gr.State(_initial_id)
+    user_id_state = gr.State(None)
+    notebooks_state = gr.State([])
+    notebook_id_state = gr.State("")
 
     Header()
 
@@ -258,8 +286,8 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
             with gr.Group(elem_classes=["section-card"]):
                 gr.Markdown("### Notebooks", elem_classes=["section-title"])
                 notebook = gr.Dropdown(
-                    choices=_notebook_choices(_notebooks_init),
-                    value=_initial_id,
+                    choices=[],
+                    value=None,
                     label="Select Notebook",
                     interactive=True,
                 )
@@ -270,7 +298,7 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                 gr.Markdown("### Ingested Sources", elem_classes=["section-title"])
                 ingested_list = gr.Dataframe(
                     headers=["Sources"],
-                    value=_sources_table(_initial_id),
+                    value=[],
                     datatype=["str"],
                     interactive=False,
                     row_count=(1, "dynamic"),
@@ -279,22 +307,33 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                 )
 
             with gr.Group(elem_classes=["section-card"]):
-                ManageNotebook(notebook, notebooks_state, notebook_id_state, ingested_list)
+                ManageNotebook(notebook, notebooks_state, notebook_id_state, ingested_list, user_id_state)
 
         # MAIN PANEL
         with gr.Column(scale=9, min_width=640):
             # Tabs: Artifacts first so it's the default view
             with gr.Tabs():
                 with gr.Tab("Sources"):
-                    upload = gr.File(label="Upload PDF, PPTX, or TXT", file_types=[".pdf", ".pptx", ".txt"], file_count="single", interactive=True)
-                    ingest_url = gr.Textbox(label="Ingest URL", placeholder="https://example.com/article", interactive=True)
+                    upload = gr.File(
+                        label="Upload PDF, PPTX, or TXT",
+                        file_types=[".pdf", ".pptx", ".txt"],
+                        file_count="single",
+                        interactive=True,
+                    )
+                    ingest_url = gr.Textbox(
+                        label="Ingest URL",
+                        placeholder="https://example.com/article",
+                        interactive=True,
+                    )
                     ingest_btn = gr.Button("Ingest URL", variant="primary")
                 with gr.Tab("Artifacts"):
                     with gr.Tabs():
                         with gr.Tab("Reports"):
                             with gr.Group(elem_classes=["section-card"]):
                                 with gr.Row():
-                                    gen = gr.Button("Generate Report", variant="primary", elem_classes=["bigbtn"])
+                                    gen = gr.Button(
+                                        "Generate Report", variant="primary", elem_classes=["bigbtn"]
+                                    )
                                 status = gr.Markdown("")
 
                             with gr.Group(elem_classes=["section-card"]):
@@ -311,11 +350,15 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                                 files_state = gr.State([])
 
                             with gr.Group(elem_classes=["section-card"]):
-                                report_preview = gr.Markdown("Generate a report to see it here.", elem_classes=["section-title"])
+                                report_preview = gr.Markdown(
+                                    "Generate a report to see it here.", elem_classes=["section-title"]
+                                )
 
                         with gr.Tab("Quizzes"):
                             with gr.Group(elem_classes=["section-card"]):
-                                gr.Markdown("### Generate Quiz from Sources", elem_classes=["section-title"])
+                                gr.Markdown(
+                                    "### Generate Quiz from Sources", elem_classes=["section-title"]
+                                )
                                 num_questions = gr.Slider(
                                     minimum=1,
                                     maximum=20,
@@ -340,47 +383,57 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                                     interactive=False,
                                 )
                         with gr.Tab("Podcasts"):
-                            gr.Markdown("## Podcasts\n(Stub) Generate podcast scripts/audio from sources.", elem_classes=["section-title"])
+                            gr.Markdown(
+                                "## Podcasts\n(Stub) Generate podcast scripts/audio from sources.",
+                                elem_classes=["section-title"],
+                            )
                 with gr.Tab("Chat"):
-                    ChatInterface(notebook_id_state)
+                    ChatInterface(notebook_id_state, user_id_state)
 
     # --- Wire up interactions ---
+    demo.load(
+        _init_user_and_notebooks,
+        inputs=None,
+        outputs=[user_id_state, notebooks_state, notebook_id_state, ingested_list, notebook],
+    )
+
     add_nb.click(
         add_notebook,
-        inputs=[new_name, notebooks_state],
+        inputs=[new_name, notebooks_state, user_id_state],
         outputs=[notebook, notebooks_state, new_name, notebook_id_state, ingested_list],
     )
 
     notebook.change(
         fn=select_notebook,
-        inputs=[notebook],
+        inputs=[notebook, user_id_state],
         outputs=[notebook_id_state, ingested_list],
     )
 
     # Upload source -> persist + ingest into selected notebook
     upload.change(
         fn=add_source,
-        inputs=[upload, notebook_id_state],
+        inputs=[upload, notebook_id_state, user_id_state],
         outputs=[ingested_list],
     )
 
     ingest_btn.click(
         fn=add_url_source,
-        inputs=[ingest_url, notebook_id_state],
+        inputs=[ingest_url, notebook_id_state, user_id_state],
         outputs=[ingested_list, ingest_url],
     )
 
     gen.click(
         _gen,
-        inputs=[notebook_id_state, files_state],
+        inputs=[notebook_id_state, files_state, user_id_state],
         outputs=[files_state, report_files, report_preview, status],
     )
 
     gen_quiz_btn.click(
         _gen_quiz,
-        inputs=[num_questions, notebook_id_state],
+        inputs=[num_questions, notebook_id_state, user_id_state],
         outputs=[quiz_output, quiz_status, quiz_download],
     )
+
 
 if __name__ == "__main__":
     demo.launch(css_paths=["./styles/styles.css"])
