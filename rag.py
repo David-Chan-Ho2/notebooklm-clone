@@ -267,3 +267,97 @@ Provide a clear, concise answer grounded in the context.
     if not content:
         content = str(response)
     return content
+
+
+from datetime import datetime
+
+
+def generate_report(
+    *,
+    persist_directory: str,
+    title: str = "Report",
+    focus_prompt: str = "",
+    k: int = 18,
+) -> str:
+    """
+    Generate a markdown report grounded in ingested sources.
+    Includes citations like [S1], [S2], ... and a Sources section.
+    """
+    if not _has_any_documents(persist_directory=persist_directory):
+        return "No sources have been ingested yet. Upload a PDF/PPTX/TXT or ingest a URL first."
+
+    vs = _get_vectorstore(persist_directory)
+    retriever = vs.as_retriever(search_kwargs={"k": k})
+
+    docs = retriever.invoke(
+        "main topics, key concepts, important facts, and conclusions across all sources"
+    )
+    if not docs:
+        return "Unable to retrieve content from the ingested sources to build a report."
+
+    labeled_chunks = []
+    sources_lines = []
+
+    for i, d in enumerate(docs, start=1):
+        tag = f"S{i}"
+        meta = getattr(d, "metadata", {}) or {}
+        source = meta.get("source") or meta.get("file_path") or meta.get("url") or "unknown"
+        page = meta.get("page", None)
+        url = meta.get("url", None)
+
+        label_bits = [str(source)]
+        if page is not None:
+            label_bits.append(f"page {page}")
+        if url and url != source:
+            label_bits.append(str(url))
+
+        sources_lines.append(f"- **[{tag}]** {', '.join(label_bits)}")
+
+        chunk = (getattr(d, "page_content", "") or "").strip()
+        if chunk:
+            labeled_chunks.append(f"[{tag}] {chunk}")
+
+    context_str = "\n\n".join(labeled_chunks)
+    sources_md = "## Sources\n" + "\n".join(sources_lines)
+
+    ts = datetime.utcnow().isoformat() + "Z"
+    focus_prompt = (focus_prompt or "").strip()
+    focus_line = f"\nUser focus request: {focus_prompt}\n" if focus_prompt else ""
+
+    prompt = f"""
+You are generating a study report for a student.
+
+RULES:
+- Use ONLY the information in the context.
+- Every non-trivial claim MUST include citations like [S1], [S2], etc.
+- If something is not supported by the context, say so. Do not guess.
+
+Return Markdown in this structure:
+
+# {title}
+- Generated: {ts}
+
+## Executive Summary
+
+## Key Concepts
+
+## Detailed Notes
+
+## Takeaways
+
+Append the Sources section at the end.
+
+{focus_line}
+
+CONTEXT:
+\"\"\"{context_str}\"\"\"
+""".strip()
+
+    llm = _get_llm()
+    response = llm.invoke(prompt)
+    content = getattr(response, "content", None) or str(response)
+
+    if "## Sources" not in content:
+        content = content.rstrip() + "\n\n" + sources_md + "\n"
+
+    return content
