@@ -47,6 +47,9 @@
   padding: 14px;
   background: rgba(255, 255, 255, 0.03);
 }
+.section-title {
+  padding: 0.4rem;
+}
 /* Primary buttons: blue/purple accent */
 button.primary,
 .primary button,

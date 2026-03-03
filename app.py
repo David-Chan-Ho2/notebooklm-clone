@@ -261,11 +261,11 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
     gr.Markdown("---")
 
     # Main layout: left sidebar + main content
-    with gr.Row(equal_height=True):
+    with gr.Row():
         # LEFT SIDEBAR
         with gr.Column(scale=3, min_width=280):
             with gr.Group(elem_classes=["section-card"]):
-                gr.Markdown("### Notebooks")
+                gr.Markdown("### Notebooks", elem_classes=["section-title"])
                 notebook = gr.Dropdown(
                     choices=_notebook_choices(_notebooks_init),
                     value=_initial_id,
@@ -276,7 +276,7 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                 add_nb = gr.Button("+ New", variant="primary")
 
             with gr.Group(elem_classes=["section-card"]):
-                gr.Markdown("### Ingested Sources")
+                gr.Markdown("### Ingested Sources", elem_classes=["section-title"])
                 ingested_list = gr.Dataframe(
                     headers=["Sources"],
                     value=_sources_table(_initial_id),
@@ -307,7 +307,7 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                                 status = gr.Markdown("")
 
                             with gr.Group(elem_classes=["section-card"]):
-                                gr.Markdown("### Report Files")
+                                gr.Markdown("### Report Files", elem_classes=["section-title"])
                                 report_files = gr.Dataframe(
                                     headers=["Files"],
                                     value=[],
@@ -320,11 +320,11 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                                 files_state = gr.State([])
 
                             with gr.Group(elem_classes=["section-card"]):
-                                report_preview = gr.Markdown("Generate a report to see it here.")
+                                report_preview = gr.Markdown("Generate a report to see it here.", elem_classes=["section-title"])
 
                         with gr.Tab("Quizzes"):
                             with gr.Group(elem_classes=["section-card"]):
-                                gr.Markdown("### Generate Quiz from Sources")
+                                gr.Markdown("### Generate Quiz from Sources", elem_classes=["section-title"])
                                 num_questions = gr.Slider(
                                     minimum=1,
                                     maximum=20,
@@ -340,16 +340,16 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                                 quiz_status = gr.Markdown("")
 
                             with gr.Group(elem_classes=["section-card"]):
-                                gr.Markdown("### Quiz")
+                                gr.Markdown("### Quiz", elem_classes=["section-title"])
                                 quiz_output = gr.Markdown(
-                                    "Generate a quiz to see it here."
+                                    "Generate a quiz to see it here.", elem_classes=["section-title"]
                                 )
                                 quiz_download = gr.File(
                                     label="Download quiz (.md)",
                                     interactive=False,
                                 )
                         with gr.Tab("Podcasts"):
-                            gr.Markdown("## Podcasts\n(Stub) Generate podcast scripts/audio from sources.")
+                            gr.Markdown("## Podcasts\n(Stub) Generate podcast scripts/audio from sources.", elem_classes=["section-title"])
                 with gr.Tab("Chat"):
                     ChatInterface(notebook_id_state)
 

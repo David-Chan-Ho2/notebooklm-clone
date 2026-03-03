@@ -100,7 +100,7 @@ def make_copy_name(base: str, choices: list[str]) -> str:
             i += 1
 
 def ManageNotebook(notebook, notebooks_state, notebook_id_state, ingested_list):
-    with gr.Accordion("Manage Notebook", open=False):
+    with gr.Accordion("Manage Notebook", open=False, elem_classes=["section-card"]):
         updated_name = gr.Textbox(label="Update name", interactive=True)
         rename_nb = gr.Button("Rename", variant="secondary", elem_classes=["full-width"])
         delete_nb = gr.Button("Delete", variant="stop", elem_classes=["full-width"])
