@@ -28,6 +28,7 @@ from rag import (
     extract_plain_text_from_url,
     generate_quiz,
     generate_report as rag_generate_report,
+    generate_podcast_script,
     ingest_file_for_rag,
     ingest_url_for_rag,
 )
@@ -97,6 +98,52 @@ def generate_report(user_id: str | None, notebook_id: str, existing_files):
     status = f"Report generated: {report_name}"
     return files, report_md, status
 
+def _gen_podcast(
+    num_exchanges: int, style: str, notebook_id: str, user_id: str | None
+):
+    """
+    Generate a podcast script (and optional audio) for the selected notebook and user.
+    """
+    notebook_id = (notebook_id or "").strip()
+    if not notebook_id:
+        return "No notebook selected.", "No podcast generated.", None, None
+
+    script = generate_podcast_script(
+        persist_directory=_chroma_dir(user_id, notebook_id),
+        num_exchanges=num_exchanges,
+        style=style,
+    )
+
+    is_error = script.startswith("No sources") or script.startswith("Unable to")
+    if is_error:
+        return script, "Podcast could not be generated.", None, None
+
+    script_path = _save_notebook_markdown(
+        user_id=user_id,
+        notebook_id=notebook_id,
+        subdir="podcasts",
+        prefix="podcast",
+        content=script,
+    )
+
+    # TTS — optional, requires: pip install gTTS
+    audio_path = None
+    try:
+        from gtts import gTTS
+        import re
+
+        # Strip markdown bold markers for cleaner speech
+        plain = re.sub(r"\*\*.*?\*\*", "", script).strip()
+        tts = gTTS(plain)
+        audio_file = script_path.with_suffix(".mp3")
+        tts.save(str(audio_file))
+        audio_path = str(audio_file)
+    except Exception:
+        # TTS is optional; script still saves fine without it
+        pass
+
+    status = f"Podcast generated: {script_path.name}"
+    return script, status, str(script_path), audio_path
 
 def add_source(file_obj, notebook_id: str, user_id: str | None):
     """
@@ -310,7 +357,7 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                 ManageNotebook(notebook, notebooks_state, notebook_id_state, ingested_list, user_id_state)
 
         # MAIN PANEL
-        with gr.Column(scale=9, min_width=640):
+        with gr.Column(scale=9, min_width=640, elem_id="main_pannel"):
             # Tabs: Artifacts first so it's the default view
             with gr.Tabs():
                 with gr.Tab("Sources"):
@@ -383,10 +430,25 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
                                     interactive=False,
                                 )
                         with gr.Tab("Podcasts"):
-                            gr.Markdown(
-                                "## Podcasts\n(Stub) Generate podcast scripts/audio from sources.",
-                                elem_classes=["section-title"],
-                            )
+                            with gr.Group(elem_classes=["section-card"]):
+                                gr.Markdown("### Generate Podcast from Sources", elem_classes=["section-title"])
+                                podcast_exchanges = gr.Slider(minimum=4, maximum=20, value=8, step=1, label="Number of exchanges")
+                                podcast_style = gr.Dropdown(
+                                    choices=["educational", "casual", "debate", "storytelling"],
+                                    value="educational",
+                                    label="Podcast style",
+                                )
+                                gen_podcast_btn = gr.Button("Generate Podcast", variant="primary", elem_classes=["bigbtn"])
+                                podcast_status = gr.Markdown("")
+
+                            with gr.Group(elem_classes=["section-card"]):
+                                gr.Markdown("### Script", elem_classes=["section-title"])
+                                podcast_output = gr.Markdown("Generate a podcast to see the script here.")
+                                podcast_download = gr.File(label="Download script (.md)", interactive=False)
+
+                            with gr.Group(elem_classes=["section-card"]):
+                                gr.Markdown("### Audio", elem_classes=["section-title"])
+                                podcast_audio = gr.Audio(label="Listen / Download", interactive=False)
                 with gr.Tab("Chat"):
                     ChatInterface(notebook_id_state, user_id_state)
 
@@ -432,6 +494,11 @@ with gr.Blocks(title=settings.APP_TITLE) as demo:
         _gen_quiz,
         inputs=[num_questions, notebook_id_state, user_id_state],
         outputs=[quiz_output, quiz_status, quiz_download],
+    )
+    gen_podcast_btn.click(
+        _gen_podcast,
+        inputs=[podcast_exchanges, podcast_style, notebook_id_state, user_id_state],
+        outputs=[podcast_output, podcast_status, podcast_download, podcast_audio],
     )
 
 

@@ -271,6 +271,45 @@ Provide a clear, concise answer grounded in the context.
 
 from datetime import datetime
 
+def generate_podcast_script(
+    *,
+    persist_directory: str,
+    num_exchanges: int = 8,
+    style: str = "educational",
+) -> str:
+    if not _has_any_documents(persist_directory=persist_directory):
+        return "No sources ingested yet. Upload a PDF/PPTX/TXT or ingest a URL first."
+
+    vs = _get_vectorstore(persist_directory)
+    retriever = vs.as_retriever(search_kwargs={"k": 14})
+    docs = retriever.invoke("main topics, key ideas, and interesting facts")
+    if not docs:
+        return "Unable to retrieve content to build a podcast."
+
+    context = "\n\n".join(d.page_content for d in docs)
+
+    prompt = f"""
+You are writing a {style} podcast script for two hosts: Alex and Jordan.
+
+Create {num_exchanges} back-and-forth exchanges. The conversation should:
+- Feel natural and engaging, not like a lecture
+- Cover the key ideas from the source material
+- Have Alex introduce topics and Jordan add insight or ask follow-up questions
+- Use ONLY information from the context below
+
+Format strictly as:
+**Alex:** ...
+**Jordan:** ...
+**Alex:** ...
+(continue for {num_exchanges} exchanges)
+
+Context:
+\"\"\"{context}\"\"\"
+""".strip()
+
+    llm = _get_llm()
+    response = llm.invoke(prompt)
+    return getattr(response, "content", None) or str(response)
 
 def generate_report(
     *,
